@@ -33,20 +33,6 @@ jobs:
         git checkout "$BRANCH_NAME"
         git merge origin/"$BRANCH_NAME"
 
-    #- name: Setup Node.js
-    #  uses: actions/setup-node@v2
-    #  with:
-    #    node-version: '14'
-
-    #- name: Install Dependencies
-    #  run: npm install
-    #
-    #- name: Build
-    #  run: npm run build
-
-    #- name: Remove node_modules
-    #  run: rm -rf node_modules
-
     - name: Copy index.html to cnvpytor.html
       run: |
         cp examples/cnvpytor/index.html cnvpytor.html
@@ -58,8 +44,8 @@ jobs:
       run: |
         git push origin "$BRANCH_NAME"
 
-     - name: commit changes if Branch does not Exists
+    - name: commit changes if Branch does not Exist
       if: steps.check_branch.outputs.branch_exists == 'false'
       run: |
-         git checkout -b "$BRANCH_NAME"
-          git push --set-upstream origin "$BRANCH_NAME"
+        git checkout -b "$BRANCH_NAME"
+        git push --set-upstream origin "$BRANCH_NAME"
