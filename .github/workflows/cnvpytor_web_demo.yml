@@ -25,7 +25,10 @@ jobs:
       run: rm -rf node_modules
 
     - name: Copy index.html to cnvpytor.html
-      run: cp examples/cnvpytor/index.html cnvpytor.html
+      run: |
+      cp examples/cnvpytor/index.html cnvpytor.html
+      cp examples/cnvpytor/cnvpytorTrackVCF.html .
+      cp examples/cnvpytor/cnvpytorTrack.html .
 
     - name: Check if Branch Exists and commit changes
       run: |
