@@ -8,7 +8,7 @@ env:
   BRANCH_NAME: web_page
 
 jobs:
-  build:
+  check-branch:
     runs-on: ubuntu-latest
 
     steps:
