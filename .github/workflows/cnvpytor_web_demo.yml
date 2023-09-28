@@ -29,12 +29,13 @@ jobs:
 
     - name: Check if Branch Exists
       run: |
-        BRANCH_NAME="web_page" # Replace with your desired branch name
+        BRANCH_NAME="web_page"
         if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
           BRANCH_EXISTS=true
         else
           BRANCH_EXISTS=false
         fi
+        echo "BRANCH_NAME: ${BRANCH_NAME}"
         echo "Branch exists: $BRANCH_EXISTS"
     - name: Debug
       run: |
