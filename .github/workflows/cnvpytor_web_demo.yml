@@ -13,7 +13,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v2
       with:
-        node-version: '14' # You can adjust the Node.js version as needed
+        node-version: '14'
 
     - name: Install Dependencies
       run: npm install
@@ -27,7 +27,7 @@ jobs:
     - name: Copy index.html to cnvpytor.html
       run: cp examples/cnvpytor/index.html cnvpytor.html
 
-    - name: Check if Branch Exists
+    - name: Check if Branch Exists and commit changes
       run: |
         BRANCH_NAME="web_page"
         if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
@@ -37,12 +37,7 @@ jobs:
         fi
         echo "BRANCH_NAME: ${BRANCH_NAME}"
         echo "Branch exists: $BRANCH_EXISTS"
-    - name: Debug
-      run: |
-        echo "BRANCH_NAME: $BRANCH_NAME"
-        
-    - name: Commit and Push Changes
-      run: |
+
         git config --global user.name "arpanda"
         git config --global user.email "rjit17@gmail.com"
         git add .
