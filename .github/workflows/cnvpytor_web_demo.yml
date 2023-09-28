@@ -36,7 +36,7 @@ jobs:
     - name: Check if Branch Exists and commit changes
       run: |
         BRANCH_NAME="web_page"
-        existed_in_remote=$(git ls-remote --heads origin ${branch})
+        existed_in_remote=$(git ls-remote --heads origin ${BRANCH_NAME})
 
         if [[ -z ${existed_in_remote} ]]; then
           BRANCH_EXISTS=true
