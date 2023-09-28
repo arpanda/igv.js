@@ -4,6 +4,8 @@ on:
     branches:
       - sync_web
 
+env:
+  BRANCH_NAME: web_page
 
 jobs:
   build:
@@ -12,6 +14,24 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+
+    - name: Check if Branch Exists
+      id: check_branch
+      run: |
+        if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+          BRANCH_EXISTS=true
+        else
+          BRANCH_EXISTS=false
+        fi
+        echo "Branch exists: $BRANCH_EXISTS"
+        echo "::set-output name=branch_exists::$BRANCH_EXISTS"
+
+    - name: Pull Changes if Branch Exists
+      if: steps.check_branch.outputs.branch_exists == 'true'
+      run: |
+        git fetch origin "$BRANCH_NAME"
+        git checkout "$BRANCH_NAME"
+        git merge origin/"$BRANCH_NAME"
 
     #- name: Setup Node.js
     #  uses: actions/setup-node@v2
@@ -33,27 +53,13 @@ jobs:
         cp examples/cnvpytor/cnvpytorTrackVCF.html .
         cp examples/cnvpytor/cnvpytorTrack.html .
 
-    - name: Check if Branch Exists and commit changes
+    - name: commit changes if Branch Exists
+      if: steps.check_branch.outputs.branch_exists == 'true'
       run: |
-        BRANCH_NAME="web_page"
-        existed_in_remote=$(git ls-remote --heads origin ${BRANCH_NAME})
+        git push origin "$BRANCH_NAME"
 
-        if [[ -z ${existed_in_remote} ]]; then
-          BRANCH_EXISTS=true
-        else
-          BRANCH_EXISTS=false
-        fi
-        echo "BRANCH_NAME: ${BRANCH_NAME}"
-        echo "Branch exists: $BRANCH_EXISTS"
-
-        git config --global user.name "arpanda"
-        git config --global user.email "rjit17@gmail.com"
-        git add .
-        git commit -m "build web page"
-        
-        if [ "$BRANCH_EXISTS" = true ]; then
-          git push origin "$BRANCH_NAME"
-        else
-          git checkout -b "$BRANCH_NAME"
+     - name: commit changes if Branch does not Exists
+      if: steps.check_branch.outputs.branch_exists == 'false'
+      run: |
+         git checkout -b "$BRANCH_NAME"
           git push --set-upstream origin "$BRANCH_NAME"
-        fi
