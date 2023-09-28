@@ -33,11 +33,25 @@ jobs:
         git checkout "$BRANCH_NAME"
         git merge origin/"$BRANCH_NAME"
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+        
+    - name: Install Dependencies
+      run: npm install
+    
+    - name: Build
+      run: npm run build
+
+    - name: Remove node_modules
+      run: rm -rf node_modules
+
     - name: Copy index.html to cnvpytor.html
       run: |
         cp examples/cnvpytor/index.html cnvpytor.html
-        cp examples/cnvpytor/cnvpytorTrackVCF.html .
-        cp examples/cnvpytor/cnvpytorTrack.html .
+        cp examples/cnvpytor/cnvpytorTrackVCF.html cnvpytorTrackVCF.html
+        cp examples/cnvpytor/cnvpytorTrack.html cnvpytorTrack.html
 
     - name: commit changes if Branch Exists
       if: steps.check_branch.outputs.branch_exists == 'true'
