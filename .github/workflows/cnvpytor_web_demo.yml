@@ -62,10 +62,14 @@ jobs:
     - name: commit changes if Branch Exists
       if: steps.check_branch.outputs.branch_exists == 'true'
       run: |
+        git add .
+        git commit -m "build web page"
         git push origin "$BRANCH_NAME"
 
     - name: commit changes if Branch does not Exist
       if: steps.check_branch.outputs.branch_exists == 'false'
       run: |
+        git add .
+        git commit -m "build web page"
         git checkout -b "$BRANCH_NAME"
         git push --set-upstream origin "$BRANCH_NAME"
