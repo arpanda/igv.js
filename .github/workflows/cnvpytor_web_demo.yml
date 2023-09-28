@@ -47,11 +47,17 @@ jobs:
     - name: Remove node_modules
       run: rm -rf node_modules
 
-    - name: Copy index.html to cnvpytor.html
+    - name: Copy files
       run: |
+        echo "Copying index.html"
         cp examples/cnvpytor/index.html cnvpytor.html
+
+        echo "Copying cnvpytorTrackVCF.html"
         cp examples/cnvpytor/cnvpytorTrackVCF.html cnvpytorTrackVCF.html
+
+        echo "Copying cnvpytorTrack.html"
         cp examples/cnvpytor/cnvpytorTrack.html cnvpytorTrack.html
+
 
     - name: commit changes if Branch Exists
       if: steps.check_branch.outputs.branch_exists == 'true'
