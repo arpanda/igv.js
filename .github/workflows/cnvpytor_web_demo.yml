@@ -1,6 +1,9 @@
 name: Build and Push to Existing or New Branch
+on:
+  push:
+    branches:
+      - sync_web
 
-on: [push]
 
 jobs:
   build:
@@ -10,19 +13,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+    #- name: Setup Node.js
+    #  uses: actions/setup-node@v2
+    #  with:
+    #    node-version: '14'
 
-    - name: Install Dependencies
-      run: npm install
+    #- name: Install Dependencies
+    #  run: npm install
+    #
+    #- name: Build
+    #  run: npm run build
 
-    - name: Build
-      run: npm run build
-
-    - name: Remove node_modules
-      run: rm -rf node_modules
+    #- name: Remove node_modules
+    #  run: rm -rf node_modules
 
     - name: Copy index.html to cnvpytor.html
       run: |
@@ -33,7 +36,9 @@ jobs:
     - name: Check if Branch Exists and commit changes
       run: |
         BRANCH_NAME="web_page"
-        if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
+        existed_in_remote=$(git ls-remote --heads origin ${branch})
+
+        if [[ -z ${existed_in_remote} ]]; then
           BRANCH_EXISTS=true
         else
           BRANCH_EXISTS=false
