@@ -35,9 +35,7 @@ jobs:
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
         git rebase origin/master
-        git push origin "$BRANCH_NAME"
-      # git merge origin/"$BRANCH_NAME"
-
+        
     - name: Setup Node.js
       uses: actions/setup-node@v2
       with:
@@ -63,24 +61,17 @@ jobs:
         echo "Copying cnvpytorTrack.html"
         cp examples/cnvpytor/cnvpytorTrack.html cnvpytorTrack.html
 
-
-    - name: commit changes if Branch Exists
-      if: steps.check_branch.outputs.branch_exists == 'true'
-      run: |
-        git config --global user.email 'rjit17@gmail.com'
-        git config --global user.name "arpanda"
-        git add .
-        git add -f dist/
-        git commit -m "build web page"
+    - name: Commit and Push Changes
+    run: |
+      git config --global user.email 'rjit17@gmail.com'
+      git config --global user.name "arpanda"
+      git add .
+      git add -f dist/
+      git commit -m "build web page"
+      if [[ ${{ steps.check_branch.outputs.branch_exists }} == 'true' ]]; then
+        git pull origin "$BRANCH_NAME" --rebase
         git push origin "$BRANCH_NAME"
-
-    - name: commit changes if Branch does not Exist
-      if: steps.check_branch.outputs.branch_exists == 'false'
-      run: |
-        git config --global user.email 'rjit17@gmail.com'
-        git config --global user.name "arpanda"
-        git add .
-        git add -f dist/
-        git commit -m "build web page"
+      else
         git checkout -b "$BRANCH_NAME"
         git push --set-upstream origin "$BRANCH_NAME"
+      fi
