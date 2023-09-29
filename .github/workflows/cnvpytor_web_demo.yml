@@ -29,6 +29,8 @@ jobs:
     - name: Pull Changes if Branch Exists
       if: steps.check_branch.outputs.branch_exists == 'true'
       run: |
+        git config --global user.email 'rjit17@gmail.com'
+        git config --global user.name "arpanda"
         git fetch origin master
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
