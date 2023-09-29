@@ -31,7 +31,8 @@ jobs:
       run: |
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
-        git merge origin/"$BRANCH_NAME"
+        git rebase origin/master
+      # git merge origin/"$BRANCH_NAME"
 
     - name: Setup Node.js
       uses: actions/setup-node@v2
