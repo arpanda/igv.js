@@ -62,16 +62,16 @@ jobs:
         cp examples/cnvpytor/cnvpytorTrack.html cnvpytorTrack.html
 
     - name: Commit and Push Changes
-    run: |
-      git config --global user.email 'rjit17@gmail.com'
-      git config --global user.name "arpanda"
-      git add .
-      git add -f dist/
-      git commit -m "build web page"
-      if [[ ${{ steps.check_branch.outputs.branch_exists }} == 'true' ]]; then
-        git pull origin "$BRANCH_NAME" --rebase
-        git push origin "$BRANCH_NAME"
-      else
-        git checkout -b "$BRANCH_NAME"
-        git push --set-upstream origin "$BRANCH_NAME"
-      fi
+      run: |
+        git config --global user.email 'rjit17@gmail.com'
+        git config --global user.name "arpanda"
+        git add .
+        git add -f dist/
+        git commit -m "build web page"
+        if [[ ${{ steps.check_branch.outputs.branch_exists }} == 'true' ]]; then
+          git pull origin "$BRANCH_NAME" --rebase
+          git push origin "$BRANCH_NAME"
+        else
+          git checkout -b "$BRANCH_NAME"
+          git push --set-upstream origin "$BRANCH_NAME"
+        fi
