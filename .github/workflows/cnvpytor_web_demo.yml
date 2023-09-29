@@ -29,9 +29,10 @@ jobs:
     - name: Pull Changes if Branch Exists
       if: steps.check_branch.outputs.branch_exists == 'true'
       run: |
+        git fetch origin master
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
-        git rebase origin/master
+        git rebase master
       # git merge origin/"$BRANCH_NAME"
 
     - name: Setup Node.js
