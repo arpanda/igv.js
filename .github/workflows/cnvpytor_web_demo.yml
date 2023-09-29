@@ -65,7 +65,7 @@ jobs:
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
         git add .
-        git add -f /dist/
+        git add -f dist/
         git commit -m "build web page"
         git push origin "$BRANCH_NAME"
 
@@ -75,6 +75,7 @@ jobs:
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
         git add .
+         git add -f dist/
         git commit -m "build web page"
         git checkout -b "$BRANCH_NAME"
         git push --set-upstream origin "$BRANCH_NAME"
