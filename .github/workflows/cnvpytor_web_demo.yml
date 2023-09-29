@@ -35,6 +35,7 @@ jobs:
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
         git rebase origin/master
+        git push origin "$BRANCH_NAME"
       # git merge origin/"$BRANCH_NAME"
 
     - name: Setup Node.js
@@ -79,7 +80,7 @@ jobs:
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
         git add .
-         git add -f dist/
+        git add -f dist/
         git commit -m "build web page"
         git checkout -b "$BRANCH_NAME"
         git push --set-upstream origin "$BRANCH_NAME"
