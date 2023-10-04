@@ -2,6 +2,7 @@ name: Build and Push to Existing or New Branch
 on:
   push:
     branches:
+      - master
       - sync_web
 
 env:
