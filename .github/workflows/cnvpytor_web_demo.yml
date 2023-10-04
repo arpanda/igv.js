@@ -36,7 +36,16 @@ jobs:
         git fetch origin "$BRANCH_NAME"
         git checkout "$BRANCH_NAME"
         git rebase origin/master
-        
+
+    - name: Create Branch if not Exists
+      if: steps.check_branch.outputs.branch_exists == 'false'
+      run: |
+        git config --global user.email 'rjit17@gmail.com'
+        git config --global user.name "arpanda"
+        git checkout -b "$BRANCH_NAME"
+        git fetch origin master
+        git checkout -b "$BRANCH_NAME"
+
     - name: Setup Node.js
       uses: actions/setup-node@v2
       with:
@@ -72,6 +81,5 @@ jobs:
         if [[ ${{ steps.check_branch.outputs.branch_exists }} == 'true' ]]; then
           git push origin "$BRANCH_NAME"
         else
-          git checkout -b "$BRANCH_NAME"
           git push --set-upstream origin "$BRANCH_NAME"
         fi
