@@ -34,7 +34,7 @@ jobs:
         git config --global user.name "arpanda"
         git fetch origin master
         git fetch origin "$BRANCH_NAME"
-        git checkout "$BRANCH_NAME"
+        git switch "$BRANCH_NAME"
         git rebase origin/master
 
     - name: Create Branch if not Exists
