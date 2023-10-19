@@ -35,7 +35,11 @@ jobs:
         git fetch origin
         git switch "$BRANCH_NAME"
         git rebase origin/master
+        git rebase --continue
+        git commit -m "Additional changes"
+        git pull origin "$BRANCH_NAME"
         git push origin "$BRANCH_NAME"
+      
 
     - name: Create Branch if not Exists
       if: steps.check_branch.outputs.branch_exists == 'false'
