@@ -32,12 +32,9 @@ jobs:
       run: |
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
-        git fetch origin master
-        git fetch origin "$BRANCH_NAME"
+        git fetch origin
         git switch "$BRANCH_NAME"
-        git rebase origin master
-        git rebase --continue
-        git commit -m "build web page"
+        git rebase origin/master
         git push origin "$BRANCH_NAME"
 
     - name: Create Branch if not Exists
