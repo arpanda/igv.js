@@ -4,6 +4,10 @@ on:
     branches:
       - master
       - sync_web
+      
+  pull_request:
+    branches:
+      - master
 
 env:
   BRANCH_NAME: web_page
