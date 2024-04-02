@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Check if Branch Exists
       id: check_branch
@@ -60,9 +60,9 @@ jobs:
         git checkout -b "$BRANCH_NAME"
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: 20.x'
         
     - name: Install Dependencies
       run: npm install
