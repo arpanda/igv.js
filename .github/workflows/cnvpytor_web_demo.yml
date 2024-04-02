@@ -54,9 +54,9 @@ jobs:
         git checkout -b "$BRANCH_NAME"
 
     - name: Setup Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
-        node-version: '14'
+        node-version: '20'
         
     - name: Install Dependencies
       run: npm install
