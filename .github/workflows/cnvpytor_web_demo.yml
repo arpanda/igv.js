@@ -38,7 +38,6 @@ jobs:
         git checkout web_page
         git rebase origin/master
         git push origin web_page
-      
 
     - name: Create Branch if not Exists
       if: steps.check_branch.outputs.branch_exists == 'false'
@@ -81,7 +80,7 @@ jobs:
         git add .
         git add -f dist/
         git commit -m "build web page"
-        if [[ ${{ steps.check_branch.outputs.branch_exists }} == 'true' ]]; then
+        if [[ "${{ steps.check_branch.outputs.branch_exists }}" == 'true' ]]; then
           git push origin "$BRANCH_NAME"
         else
           git push --set-upstream origin "$BRANCH_NAME"
