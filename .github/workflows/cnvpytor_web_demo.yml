@@ -1,4 +1,4 @@
-name: Build and Push to Existing or New Branch
+name: Update CNVpytor track demo
 on:
   push:
     branches:
