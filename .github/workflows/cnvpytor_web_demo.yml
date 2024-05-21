@@ -36,6 +36,7 @@ jobs:
         git config --global user.name "arpanda"
         git fetch origin
         git checkout web_page
+        git pull origin web_page
         git rebase origin/master
         git push origin web_page
 
