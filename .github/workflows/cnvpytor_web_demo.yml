@@ -19,14 +19,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Check if Branch Exists
       id: check_branch
       run: |
         if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
-          echo "::set-output name=branch_exists::true"
+          echo "branch_exists=true" >> $GITHUB_OUTPUT
         else
-          echo "::set-output name=branch_exists::false"
+          echo "branch_exists=false" >> $GITHUB_OUTPUT
         fi
         
     - name: Pull Changes if Branch Exists
@@ -35,18 +37,16 @@ jobs:
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
         git fetch origin
-        git checkout web_page
-        git pull origin web_page
+        git checkout $BRANCH_NAME
+        git pull origin $BRANCH_NAME
         git rebase origin/master
-        git push origin web_page
+        git push origin $BRANCH_NAME
 
     - name: Create Branch if not Exists
       if: steps.check_branch.outputs.branch_exists == 'false'
       run: |
         git config --global user.email 'rjit17@gmail.com'
         git config --global user.name "arpanda"
-        git fetch origin master
-        git switch master
         git checkout -b "$BRANCH_NAME"
 
     - name: Setup Node.js
@@ -80,9 +80,10 @@ jobs:
         git config --global user.name "arpanda"
         git add .
         git add -f dist/
-        git commit -m "build web page"
+        git commit -m "build web page" || echo "No changes to commit"
         if [[ "${{ steps.check_branch.outputs.branch_exists }}" == 'true' ]]; then
           git push origin "$BRANCH_NAME"
         else
           git push --set-upstream origin "$BRANCH_NAME"
         fi
+
