@@ -40,7 +40,7 @@ jobs:
         git checkout $BRANCH_NAME
         git pull origin $BRANCH_NAME
         git rebase origin/master
-        git push origin $BRANCH_NAME
+        git push --force origin $BRANCH_NAME
 
     - name: Create Branch if not Exists
       if: steps.check_branch.outputs.branch_exists == 'false'
