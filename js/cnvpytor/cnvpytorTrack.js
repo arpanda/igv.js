@@ -6,6 +6,11 @@ import {createCheckbox} from "../igv-icons.js"
 import IGVGraphics from "../igv-canvas.js"
 import VariantTrack from "../variant/variantTrack.js"
 
+// testing for highlighting CNV calls
+import * as DOMUtils from "../ui/utils/dom-utils.js"
+import { FileUtils} from "../../node_modules/igv-utils/src/index.js"
+import TrackROISet from "../roi/trackROISet.js"
+
 class CNVPytorTrack extends TrackBase {
 
     static DEFAULT_TRACK_HEIGHT = 250
@@ -32,6 +37,8 @@ class CNVPytorTrack extends TrackBase {
         this.cnv_caller = config.cnv_caller || '2D'
         this.colors = config.colors || ['gray', 'black', 'green', 'blue']
         this.hasChroms = {}
+        this.highlightCNV = true
+    
         super.init(config)
 
     }
@@ -44,10 +51,10 @@ class CNVPytorTrack extends TrackBase {
         let signals = []
 
         if (this.signal_name == 'rd_snp') {
-            signals = ["RD_Raw", "RD_Raw_gc_coor", this.cnv_caller, "BAF1", "BAF2"]
+            signals = ["RD_Raw", "RD_Raw_gc_corrected", this.cnv_caller, "BAF1", "BAF2"]
 
         } else if (this.signal_name == 'rd') {
-            signals = ["RD_Raw", "RD_Raw_gc_coor", this.cnv_caller]
+            signals = ["RD_Raw", "RD_Raw_gc_corrected", this.cnv_caller]
 
         } else if (this.signal_name == 'snp') {
             signals = ["BAF1", "BAF2"]
@@ -127,11 +134,17 @@ class CNVPytorTrack extends TrackBase {
             let chroms = [ ...new Set(this.browser.referenceFrameList.map(val => val.chr))]
             
             let aliasRecord = this.getAliasChromsList(chroms)
-            this.wigFeatures_obj = await this.cnvpytor_obj.get_rd_signal(this.bin_size, aliasRecord)
-
+            // console.log("aliasRecord", aliasRecord)
+            // console.log("chrom", chroms)
+            //this.wigFeatures_obj = await this.cnvpytor_obj.get_rd_signal(this.bin_size, this.cnv_caller, aliasRecord)
+            
+            await this.cnvpytor_obj.get_rd_signal(this.bin_size, this.cnv_caller, aliasRecord)
+            this.wigFeatures_obj = this.cnvpytor_obj.allWigFeatures
+            
             // Save the processed chroms names to check later for the availability
             this.update_hasChroms(this.wigFeatures_obj, chroms)
 
+            // console.log("this.hasChroms : ", this.hasChroms)
             this.available_bins = this.cnvpytor_obj.availableBins
             // reset the bin size if its not exits
             if(! this.available_bins.includes(this.bin_size)){
@@ -151,7 +164,9 @@ class CNVPytorTrack extends TrackBase {
         for (let bin_size in this.wigFeatures_obj) {
             let i = 0
             for (const [signal_name, wig] of Object.entries(this.wigFeatures_obj[bin_size])) {
-
+                
+                if (!Array.isArray(wig)) {continue}
+        
                 if (this.signals.includes(signal_name)) {
                     let tconf = {}
                     tconf.type = "wig"
@@ -176,7 +191,6 @@ class CNVPytorTrack extends TrackBase {
 
         }
 
-
         this.flipAxis = this.config.flipAxis ? this.config.flipAxis : false
         this.logScale = this.config.logScale ? this.config.logScale : false
         this.autoscale = this.config.autoscale
@@ -190,10 +204,72 @@ class CNVPytorTrack extends TrackBase {
             t.autoscale = false
             t.dataRange = this.dataRange
         }
-
+        
+        this.default_filter_criteria = {p_range: [0, 1], q0_range: [0, 1], dG:0, cf:0.00, baf: [0.01, 1], bins: 4} 
+        // for meanshift 
+        this.filter_criteria = {p_range: [0, 1], q0_range: [0, 1] , dG:0}
+        // 2d callers
+        this.filter_criteria = {p_range: [0, 1], q0_range: [0, 1], cf:0.00, baf: [0.01, 1], bins: 1}
+        this.get_roi_features()
+        
         return Promise.all(p)
     }
 
+    get_roi_features() {
+        // Initialize roiSets
+        this.roiSets = [];
+    
+        // Fetch CNV calls
+        const cnvCalls = this.cnvpytor_obj.CNVcalls?.[this.bin_size]?.[this.cnv_caller];
+    
+        if (this.highlightCNV && cnvCalls) {
+            const filteredCNV_Calls = this.get_filtered_calls(cnvCalls);
+            if (filteredCNV_Calls.length > 0) {
+                this.roiSets = filteredCNV_Calls.map(r => new TrackROISet(r, this.browser.genome));
+            }
+        }
+    
+        // Add additional ROIs from config if available
+        if (this.config.roi?.length) {
+            this.roiSets.push(...this.config.roi.map(r => new TrackROISet(r, this.browser.genome)));
+        }
+    }
+    
+    get_filtered_calls(cnvCalls){
+        let filteredCNV_Calls = [];
+        const colorMap = {
+            deletion: "rgba(250,0,0,0.25)",
+            duplication: "rgba(3,52,249,0.25)",
+            cnnloh: "rgba(3,250,0,0.25)"
+        };
+        const isInRange = (value, min, max) => min <= value && value <= max;
+
+        for (const [cnv_type, cnv_rows] of Object.entries(cnvCalls)) {
+            
+            // apply the filtering here
+            let filteredCNV_Rows = cnv_rows.filter(row => 
+                isInRange(row.p_val, this.filter_criteria.p_range[0], this.filter_criteria.p_range[1]) &&
+                isInRange(row.Q0, this.filter_criteria.q0_range[0], this.filter_criteria.q0_range[1]) &&
+        
+                Math.abs(row.cnv - 1) * 2 > this.filter_criteria.cf &&
+                (row.baf === undefined || isInRange(row.baf, this.filter_criteria.baf[0], this.filter_criteria.baf[1]) ) &&
+                (row.bins === undefined || row.bins >= this.filter_criteria.bins)
+            )
+            
+            if (filteredCNV_Rows.length > 0) {
+                
+                filteredCNV_Calls.push({
+                    name: cnv_type,
+                    features: filteredCNV_Rows,
+                    color: colorMap[cnv_type] || "rgba(0,0,0,0.25)" // Default color (optional)
+                });
+            }
+        }
+        
+        return filteredCNV_Calls
+    }
+
+    
     getAliasChromsList(chroms){
         let aliasRecord = chroms.map(chr => {
             let records = this.browser.genome.chromAlias.aliasRecordCache.get(chr)
@@ -258,6 +334,34 @@ class CNVPytorTrack extends TrackBase {
         }
 
         items = items.concat(this.numericDataMenuItems())
+        items.push('<hr/>')
+        items.push("Highlight CNV Calls")
+        for (let hc of [true, false]){
+            items.push({
+                element: createCheckbox(hc, hc === this.highlightCNV),
+                click: async function roiHandler() {
+                    if (hc !== this.highlightCNV) {
+                        
+                        this.highlightCNV = hc
+                        this.get_roi_features()
+                       
+                        this.clearCachedFeatures()
+                        
+                        this.trackView.updateViews()
+                        this.trackView.repaintViews()
+                    }
+                    
+                }
+            })
+        }
+        // items.push('<hr/>')
+        
+        items.push(this.PvalueAdjustmentMenuItem())
+        items.push(this.q0AdjustmentMenuItem())
+        items.push(this.BinsAdjustmentMenuItem())
+        items.push(this.GapAdjustmentMenuItem())
+        items.push(this.CellFreqAdjustmentMenuItem() )
+        items.push(this.BafAdjustmentMenuItem())
 
         items.push('<hr/>')
         items.push("Bin Sizes")
@@ -266,14 +370,16 @@ class CNVPytorTrack extends TrackBase {
             items.push({
                 element: createCheckbox(rd_bin, rd_bin === this.bin_size),
                 click: async function binSizesHandler() {
-                    this.bin_size = rd_bin
-                    // data loader image
-                    this.trackView.startSpinner()
+                    if (rd_bin !== this.bin_size) {
+                        this.bin_size = rd_bin
+                        // data loader image
+                        this.trackView.startSpinner()
 
-                    await this.recreate_tracks(rd_bin)
-                    this.clearCachedFeatures()
-                    this.trackView.updateViews()
-                    this.trackView.repaintViews()
+                        await this.recreate_tracks(rd_bin)
+                        this.clearCachedFeatures()
+                        this.trackView.updateViews()
+                        this.trackView.repaintViews()
+                    }
                 }
             })
         }
@@ -304,17 +410,53 @@ class CNVPytorTrack extends TrackBase {
             items.push({
                 element: createCheckbox(cnv_caller, cnv_caller === this.cnv_caller),
                 click: async function cnvCallerHandler() {
-                    this.cnv_caller = cnv_caller
-                    // data loader image
-                    this.trackView.startSpinner()
+                    if (cnv_caller !== this.cnv_caller) {
+                        this.cnv_caller = cnv_caller
+                        // data loader image
+                        this.trackView.startSpinner()
 
-                    await this.recreate_tracks(this.bin_size)
-                    this.clearCachedFeatures()
-                    this.trackView.updateViews()
-                    this.trackView.repaintViews()
+                        await this.recreate_tracks(this.bin_size)
+                        this.clearCachedFeatures()
+                        this.trackView.updateViews()
+                        this.trackView.repaintViews()
+                    }
                 }
             })
         }
+
+        // download calls
+        items.push('<hr/>')
+        items.push("Download CNV calls")
+        items.push({
+            label: "\u00A0\u00A0 All calls",
+            click: function downloadCallHandler() {
+
+                const path = 'cnvpytortrack_igvjs.tsv';
+                let CNV_calls = this.cnvpytor_obj.CNVcalls[this.bin_size][this.cnv_caller];
+                this.getTSVformattedCalls(path, CNV_calls)
+            }
+        })
+        items.push({
+            label: "\u00A0\u00A0 Filtered calls",
+            click: function downloadCallHandler() {
+
+                const path = 'cnvpytortrack_filtered_igvjs.tsv';
+                let CNV_calls = this.cnvpytor_obj.CNVcalls[this.bin_size][this.cnv_caller];
+
+
+                let filtered_roi = this.get_filtered_calls(CNV_calls)                
+                if (filtered_roi){
+                    let download_calls = {}
+                    for (let call of filtered_roi){
+                        if(call.features.length > 0){
+                            download_calls[call.name] = call.features
+                        }
+                    }
+                    
+                    this.getTSVformattedCalls(path, download_calls)
+                }
+            }
+        })
 
         // variant track conversion -- only if track was originally created from a VariantTrack
         if (this.variantState) {
@@ -333,25 +475,278 @@ class CNVPytorTrack extends TrackBase {
 
         return items
     }
+    getTSVformattedCalls(path, calls){
+        // Flattening the JSON structure into an array of rows
+        const rows = [];
+        const headers = new Set(); // Collect unique headers dynamically
 
+        // Iterate over each category (deletion, duplication)
+        for (const [category, entries] of Object.entries(calls)) {
+            entries.forEach(entry => {
+                entry["type"] = category; // Add a column to differentiate types
+                rows.push(entry);
+                Object.keys(entry).forEach(key => headers.add(key)); // Collect all headers
+            });
+        }
+
+        // Define the required column order
+        const requiredOrder = ["type", "chr", "start", "end", "cnv", "size"];
+
+        // Collect remaining headers dynamically
+        const otherHeaders = [...headers].filter(h => !requiredOrder.includes(h));
+
+        // Final column order: required columns first, then remaining columns
+        const finalHeaders = [...requiredOrder, ...otherHeaders];
+
+        // Convert data to TSV format
+        const tsvData = [
+            finalHeaders.join("\t"), // Header row
+            ...rows.map(row => finalHeaders.map(field => row[field] ?? "").join("\t")) // Data rows
+        ].join("\n");
+
+        // Create a Blob and Object URL
+        const blob = new Blob([tsvData], { type: "text/tab-separated-values" });
+        const dataUrl = URL.createObjectURL(blob);
+
+        // Trigger the download
+        FileUtils.download(path, dataUrl);
+
+        // Revoke the URL after a short delay to release memory
+        setTimeout(() => URL.revokeObjectURL(dataUrl), 1000);
+    }
+
+    PvalueAdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Max P value'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+            
+                this.filter_criteria.p_range[1] = Math.max(0.0000, alpha)
+                this.get_roi_features()
+
+                // this.clearCachedFeatures()
+                this.trackView.updateViews()
+                this.trackView.repaintViews()
+            }
+
+            const config ={
+                label: 'Max P value',
+                value: this.filter_criteria.p_range[1],
+                min: 0.00,
+                max: this.default_filter_criteria.p_range[1],
+                precision: 4,
+                scaleFactor: 1000,
+                callback
+            }
+
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        
+        return {element, dialog: dialogPresentationHandler}
+    }
+
+    q0AdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Max Q0 value'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+            
+                this.filter_criteria.q0_range[1] = Math.max(0.0000, alpha)
+
+                this.get_roi_features()
+
+                // this.clearCachedFeatures()
+                this.trackView.updateViews()
+                this.trackView.repaintViews()
+            }
+
+            const config ={
+                label: 'Max Q0 value',
+                value: this.filter_criteria.q0_range[1],
+                min: 0.00,
+                max: this.default_filter_criteria.q0_range[1],
+                precision: 4,
+                scaleFactor: 1000,
+                callback
+            }
+
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        
+        return {element, dialog: dialogPresentationHandler}
+    }
+
+    GapAdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Min Distance from GAP'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+                
+                this.filter_criteria.dG = Math.max(0.0000, alpha)
+
+                this.get_roi_features()
+                //this.clearCachedFeatures()
+                this.trackView.updateViews()
+                // this.repaintViews()
+                this.trackView.repaintViews()
+            }
+
+            const config ={
+                label: 'Min Distance from GAP',
+                value: this.default_filter_criteria.dG,
+                min: 0.00,
+                max: 200000,
+                precision: 0,
+                scaleFactor: 1,
+                callback
+            }
+            
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        return {element, dialog: dialogPresentationHandler}
+    }
+
+    BinsAdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Min Bins'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+                
+                this.filter_criteria.bins = Math.max(0.0000, alpha)
+
+                this.get_roi_features()
+                
+                //this.clearCachedFeatures()
+                this.trackView.updateViews()
+                // this.repaintViews()
+                this.trackView.repaintViews()
+            }
+
+            const config ={
+                label: 'Min Bin count',
+                value: this.filter_criteria.bins,
+                min: 0.00,
+                max: 20,
+                precision: 0,
+                scaleFactor: 1,
+                callback
+            }   
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        return {element, dialog: dialogPresentationHandler}
+    }
+
+    CellFreqAdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Min Cell frequency'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+                
+                this.filter_criteria.cf = Math.max(0.0000, alpha)
+
+                this.get_roi_features()
+                //this.clearCachedFeatures()
+                this.trackView.updateViews()
+                // this.repaintViews()
+                this.trackView.repaintViews()
+            }
+
+            const config ={
+                label: 'Min Cell frequency',
+                value: this.filter_criteria.cf,
+                min: 0.00,
+                max: 1,
+                precision: 0,
+                scaleFactor: 100,
+                callback
+            }   
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        return {element, dialog: dialogPresentationHandler}
+    }
+
+    BafAdjustmentMenuItem() {
+        const element = DOMUtils.div()
+        element.innerText = 'Set Min BAF'
+
+        function dialogPresentationHandler(e) {
+            const callback = alpha => {
+                
+                this.filter_criteria.baf[0] = Math.max(0.0000, alpha)
+
+                this.get_roi_features()
+                //this.clearCachedFeatures()
+                this.trackView.updateViews()
+                // this.repaintViews()
+                this.trackView.repaintViews()
+            }
+
+            const config = {
+                label: 'Min BAF',
+                value: this.filter_criteria.baf[0],
+                min: 0.00,
+                max: 0.5,
+                precision: 4,
+                scaleFactor: 1000,
+                callback
+            }   
+            this.browser.sliderDialog.present(config, e)
+            
+        }
+        return {element, dialog: dialogPresentationHandler}
+    }
+    
     async recreate_tracks(bin_size) {
         this.tracks = []
         const p = []
 
-        if (!(bin_size in this.wigFeatures_obj)) {
+        // if (!(bin_size in this.wigFeatures_obj)) {
+        if (!this.cnvpytor_obj.allWigFeatures[bin_size]) {
+            // console.log('Update track 2', this.hasChroms)
             if(Object.keys(this.hasChroms).length > 0) {
+                // console.log("test2")
                 let chroms = [ ...new Set(this.browser.referenceFrameList.map(val => val.chr))]
                 if(chroms[0] == "all"){
                     chroms = this.browser.genome.chromosomeNames
                 }
-
-                this.wigFeatures_obj = {...this.wigFeatures_obj, ...await this.cnvpytor_obj.get_rd_signal(bin_size, chroms)}
+                
+                // this.wigFeatures_obj = {...this.wigFeatures_obj, ...await this.cnvpytor_obj.get_rd_signal(bin_size, this.cnv_caller, chroms)}
+                
+                await this.cnvpytor_obj.get_rd_signal(bin_size, this.cnv_caller, chroms)
+                
+                this.wigFeatures_obj = this.cnvpytor_obj.allWigFeatures
                 this.update_hasChroms(this.wigFeatures_obj, chroms)
+                
             } else{
-                this.wigFeatures_obj = {...this.wigFeatures_obj, ...await this.cnvpytor_obj.get_rd_signal(bin_size)}
+                // console.log('update bin size', bin_size)
+                // if (this.cnvpytor_obj.allWigFeatures[bin_size][this.callers] == undefined) {
+                await this.cnvpytor_obj.get_rd_signal(bin_size, this.cnv_caller)
+                // this.wigFeatures_obj = {...this.wigFeatures_obj, ...await this.cnvpytor_obj.get_rd_signal(bin_size, this.cnv_caller)}
+                
             }
             
         }
+        if (!this.cnvpytor_obj.allWigFeatures[bin_size][this.cnv_caller]){
+
+            let chroms = [ ...new Set(this.browser.referenceFrameList.map(val => val.chr))]
+            if(chroms[0] == "all"){
+                chroms = this.browser.genome.chromosomeNames
+            }
+            // cnv_caller, rdChromosomes, bin_size
+            await this.cnvpytor_obj.getCallerWigfeatures(this.cnv_caller, chroms, bin_size)
+        }
+
+        this.get_roi_features()
 
         this.signals = this.get_signals()
         this.signal_colors = this.get_signal_colors()
@@ -382,7 +777,6 @@ class CNVPytorTrack extends TrackBase {
 
         }
 
-
         this.flipAxis = this.config.flipAxis ? this.config.flipAxis : false
         this.logScale = this.config.logScale ? this.config.logScale : false
         this.autoscale = this.config.autoscale
@@ -412,7 +806,7 @@ class CNVPytorTrack extends TrackBase {
     }
 
     async getFeatures(chr, bpStart, bpEnd, bpPerPixel) {
-        
+        // console.log("get features")
         if(Object.keys(this.hasChroms).length > 0) {
             
             // Need to find the current binSize
@@ -427,20 +821,21 @@ class CNVPytorTrack extends TrackBase {
 
                     let aliasRecords = this.getAliasChromsList(newChroms)
                     // update the hasChroms list
-                    let tmp_wig = await this.cnvpytor_obj.get_rd_signal(this.bin_size, aliasRecords)
-
+                    let tmp_wig = await this.cnvpytor_obj.get_rd_signal(this.bin_size, this.cnv_caller, aliasRecords)
                     this.update_hasChroms(tmp_wig, newChroms)
 
                     // here we need to update the wig
                     // this part is probaby not required; code improve required
                     
+                    this.get_roi_features()
+
                     for (let bin_size in tmp_wig){
                         for (const [signal_name, wig] of Object.entries(tmp_wig[bin_size])) {
                             await this.wigFeatures_obj[bin_size][signal_name].push(...wig)
                         }
                     }
 
-                    for (let wig of this.tracks){
+                    for (let wig of this.tracks){                       
                         await wig.featureSource.updateFeatures(this.wigFeatures_obj[this.bin_size][wig.name] )
                     }
                 }
