@@ -39,19 +39,30 @@ class CombinedCaller extends baseCNVpytorVCF {
         let gstat_lh = []
         let gstat_n = []
         let gstat_event = []
-        
-        for (const [chr, wig] of Object.entries(this.wigFeatures)) {
-            let segments = []
-            let levels = []
-            let likelihoods = []
-            
+
+        // sorting the wigFeatures for chormosome names order i.e., chr1, chr2, ....
+        let sortedDictionary = {};
+        Object.keys(this.wigFeatures).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(key => {
+            sortedDictionary[key] = this.wigFeatures[key];
+        });
+
+        // console.log(sortedDictionary)
+
+        // processing each chromosome 
+        for (const [chr, wig] of Object.entries(sortedDictionary)) {
+            let segments = [] // stores segments bins
+            let levels = [] // stores rd score; binScore or GC corrected bin score
+            let likelihoods = [] // stores likelihood value 
+
             wig.forEach((bin, bin_idx) => {
                 if (bin.hets_count > 4 ){
                     
                     if( bin.dp_count > min_count ){
                         if(bin[binScoreField]){
+                            
                             segments.push([bin_idx])
                             levels.push(bin[binScoreField])
+                            // console.log(bin.likelihood_score)
                             likelihoods.push(bin.likelihood_score)
                             delete bin.likelihood_score
 
@@ -60,7 +71,7 @@ class CombinedCaller extends baseCNVpytorVCF {
                     }
                 }
             })
-
+            
             let diff_level = []
             for(let i=1; i<levels.length; i++){
                 diff_level.push(Math.abs(levels[i] - levels[i-1]))
@@ -209,8 +220,9 @@ class CombinedCaller extends baseCNVpytorVCF {
                 ons = segments.length
             }
             // console.log('final segments', segments)
-            
+            // console.log(likelihoods)
             segments.forEach((seg_value, seg_idx) => {
+                // console.log("segment: ", seg_value, seg_idx, likelihoods[seg_idx])
                 let baf_info = likelihood_baf_pval(likelihoods[seg_idx])
                 if(seg_value.length > 1){
                     let q0 = 0
@@ -229,16 +241,37 @@ class CombinedCaller extends baseCNVpytorVCF {
                     gstat_error.push(error[seg_idx])
                     gstat_baf.push(baf_info.mean)
                     gstat_lh.push(likelihoods[seg_idx])
+                    
+                    gstat_event.push({
+                        "chr": chr,
+                        "start": seg_value[0] * this.binSize + 1,
+                        "end": seg_value[seg_value.length - 1] * this.binSize + this.binSize,
+                        "size": (seg_value[seg_value.length - 1] - seg_value[0]  + 1) * this.binSize,
+                        "baf": baf_info.mean,
+                        "baf_pval": baf_info.p,
+                        /*
+  
+                        "Q0": q0,
+                        "pN": pN,
+                        "pNS": pNS,
+                        "pP": pP,
+                        "hets": hets,
+                        "homs": homs,
+                        */
+                        "segment": seg_idx,
+                    })
+                    gstat_n.push(seg_value.length)
 
                 }
 
             });
 
             continue
+            
         }
         
         // Third stage for call
-        
+        // console.log('gstat_event: ', gstat_event)
         // let data = gstat_rd0.lengthn == 0 ?  gstat_rd_all: gstat_rd0 ;
         
         let points = parseInt(1000 * (1 - min_cell_fraction))
@@ -263,15 +296,16 @@ class CombinedCaller extends baseCNVpytorVCF {
                     g_mbaf = 0
                     mbaf =  x.map((v, idx) => {return 0*v})
                 }
-                
+
                 for( let ei=0; ei < gstat_rd.length; ei++){
                         
                     let g_lh = normal(g_mrd * this.globalMean, 1, gstat_rd[ei], gstat_error[ei]) * likelihood_of_baf(gstat_lh[ei], 0.5 + g_mbaf)
-                    if(ei in germline_lh){
-                        germline_lh[ei].push([cn, h1, h2, g_lh, 1.0])
-                    }else{
-                        germline_lh[ei] = [cn, h1, h2, g_lh, 1.0]
+                    // console.log('g_lh ', g_lh)
+                    if(! germline_lh[ei]){
+                        germline_lh[ei] = []
                     }
+                    germline_lh[ei].push([cn, h1, h2, g_lh, 1.0])
+
                     let slh = 0
                     let max_lh = 0
                     let max_x = 0
@@ -285,60 +319,112 @@ class CombinedCaller extends baseCNVpytorVCF {
                             }
                         }
                     });
-                    if(ei in master_lh){
-                        master_lh[ei].push([cn, h1, h2, slh / x.length, max_x])
-                    }else{
-                        master_lh[ei] = [cn, h1, h2, slh / x.length, max_x]
+                    if (!master_lh[ei]){
+                        master_lh[ei] = []
                     }
-                }
-                
-                for( let ei=0; ei < gstat_rd.length; ei++){
-                    if(event_type == "germline"){
-                        master_lh[ei].sort((a, b) => a[3] - b[3]);
-                    }
-                    else{
-                        master_lh[ei].sort((a, b) => a[3] - b[3]);
-                        if(event_type == "both"){
-                            
-                            germline_lh[ei].sort((a, b) => a[3] - b[3]);
-                            if(germline_lh[ei][0][3] > master_lh[ei][0][3]){
-                                //let tmp_list = list(filter( lambda x: x[0] != germline_lh[ei][0][0] and x[1] != germline_lh[ei][0][1], master_lh[ei]))
-                                let tmp_list = master_lh[ei].filter((x) => (x[0] != germline_lh[ei][0][0]) && (x[1] <= germline_lh[ei][0][1]))
-                                // console.log('tmp_list', tmp_list)
-                                // master_lh[ei] = [germline_lh[ei][0]] + tmp_list
-                                master_lh[ei] = [germline_lh[ei][0]].push(...tmp_list)
-                            }
-                        }
-                    }
-                }
-                let chr_calls;
-                for( let ei=0; ei < gstat_rd.length; ei++){
-                    let etype = "cnnloh"
-                    let netype = 0
-                    if(master_lh[ei][0][0] > 2){
-                        etype = "duplication"
-                        netype = 1
-                    }
-                    if(master_lh[ei][0][0] < 2){
-                        etype = "deletion"
-                        netype = -1
-                    }
-                    let cnv = gstat_rd[ei] / this.globalMean;
-                    let rd_pval = t_dist.t_test_1_sample(this.globalMean, gstat_rd[ei], gstat_error[ei], gstat_n[ei])
-
-                    // let pval = rd_pval * gstat_event[ei]["baf_pval"];
-                    let lh_del = 0
-                    let lh_loh = 0
-                    let lh_dup = 0
-                    // console.log(etype)
+                    master_lh[ei].push([cn, h1, h2, slh / x.length, max_x])
 
                 }
-                
-
-                // break
             }
+
+        }
+
+        // console.log("master_lh : ", master_lh, "germline_lh: ", germline_lh)
+        for( let ei=0; ei < gstat_rd.length; ei++){
+            if(event_type == "germline"){
+                master_lh[ei].sort((a, b) => a[3] - b[3]);
+            }
+            else{
+                master_lh[ei].sort((a, b) => a[3] - b[3]);
+
+                if(event_type == "both"){
+                    // console.log("event type: both")    
+                    germline_lh[ei].sort((a, b) => a[3] - b[3]);
+                    if(germline_lh[ei][0][3] > master_lh[ei][0][3]){
+                        //let tmp_list = list(filter( lambda x: x[0] != germline_lh[ei][0][0] and x[1] != germline_lh[ei][0][1], master_lh[ei]))
+                        let tmp_list = master_lh[ei].filter((x) => (x[0] != germline_lh[ei][0][0]) && (x[1] <= germline_lh[ei][0][1]))
+                        // console.log('tmp_list', tmp_list)
+                        // master_lh[ei] = [germline_lh[ei][0]] + tmp_list
+                        master_lh[ei] = [germline_lh[ei][0]].push(...tmp_list)
+                    }
+                }
+            }
+        }
+        // console.log("master_lh 2: ", master_lh)
+        // console.log("gstat_rd: ", gstat_rd)   
+        // console.log("gstat_baf: ", gstat_baf)
+        let cnvCalls= {}
+        for( let ei=0; ei < gstat_rd.length; ei++){
+            
+            // console.log(master_lh[ei])
+            let etype = "cnnloh"
+            let netype = 0
+            if(master_lh[ei][0][0] > 2){
+                etype = "duplication"
+                netype = 1
+            }
+            if(master_lh[ei][0][0] < 2){
+                etype = "deletion"
+                netype = -1
+            }
+            // console.log('call value', master_lh[ei][0][0], 'type: ', etype)
+            let normalized_cn = gstat_rd[ei] / this.globalMean;
+            let rd_pval = t_dist.t_test_1_sample(this.globalMean, gstat_rd[ei], gstat_error[ei], gstat_n[ei])
+
+            // console.log(this.globalMean, gstat_rd[ei], gstat_error[ei], gstat_n[ei])
+            // console.log(gstat_event[ei]["baf_pval"])
+            let p_value = rd_pval * gstat_event[ei]["baf_pval"];
+            // console.log("pval ", pval)
+            let lh_del = 0
+            let lh_loh = 0
+            let lh_dup = 0
+
+            // console.log('gstat_rd', gstat_rd)
+            // prepare the call dct
+            // some default cnv filtering
+            // if (gstat_baf[ei] <= baf_threshold && normalized_cn < 1.01 && normalized_cn > 0.99){
+            if (gstat_baf[ei] <= baf_threshold & Math.abs(normalized_cn - 1) < 0.01) {
+                continue
+            }
+
+            if (master_lh[ei][0][1] == 1 & master_lh[ei][0][2] == 1){
+                continue
+            }
+
+            let cnv_dict = {
+                "type": etype,
+                "chr": gstat_event[ei]["chr"],
+                "start": gstat_event[ei]["start"],
+                "end": gstat_event[ei]["end"],
+                "size": gstat_event[ei]["size"],
+                "cn": normalized_cn,
+                'p_val': p_value,
+                "bins": gstat_n[ei],
+                "baf": gstat_baf[ei],
+                "rd_p_val": p_value,
+                "baf_p_val": gstat_event[ei]["baf_pval"],
+                /*
+                // chr: chr,
+                start: this.binSize * border_start + 1,
+                end: this.binSize * b,
+                size: this.binSize * (b - border_start + 1),
+                cn: normalized_cn ,
+                type: etype,
+                bins: (b - border_start + 1)
+                */
+            }
+            // console.log(cnv_dict)
+            // chr_calls.push(cnv_dict)
+            if (!cnvCalls[etype]) { cnvCalls[etype] = [] }
+                cnvCalls[etype].push(cnv_dict)
             
         }
+
+        // console.log(cnvCalls)
+        // setting up the calls 
+        this.CNVcalls = {};
+        this.CNVcalls[this.binSize] = {}
+        this.CNVcalls[this.binSize]['2D'] = cnvCalls
         
         var rawbinScore = this.formatDataStructure(this.wigFeatures, 'binScore', this.globalMean)
 

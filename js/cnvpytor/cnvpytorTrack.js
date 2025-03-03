@@ -69,7 +69,7 @@ class CNVPytorTrack extends TrackBase {
 
         let signal_colors = [
             {singal_name: 'RD_Raw', color: this.colors[0]},
-            {singal_name: 'RD_Raw_gc_coor', color: this.colors[1]},
+            {singal_name: 'RD_Raw_gc_corrected', color: this.colors[1]},
             {singal_name: 'ReadDepth', color: this.colors[2]},
             {singal_name: '2D', color: this.colors[2]},
             {singal_name: 'BAF1', color: this.colors[3]},
@@ -94,7 +94,7 @@ class CNVPytorTrack extends TrackBase {
             const refGenome = this.browser.config.genome
             
             // Initializing CNVpytorVCF class
-            const cnvpytor_obj = new CNVpytorVCF(allVariants, this.bin_size, refGenome)
+            this.cnvpytor_obj = new CNVpytorVCF(allVariants, this.bin_size, refGenome)
             let wigFeatures
             let bafFeatures
             this.wigFeatures_obj = {}
@@ -104,7 +104,7 @@ class CNVPytorTrack extends TrackBase {
 
             if (this.cnv_caller == '2D') {
 
-                dataWigs = await cnvpytor_obj.read_rd_baf('2D')
+                dataWigs = await this.cnvpytor_obj.read_rd_baf('2D')
 
                 wigFeatures = dataWigs[0]
                 bafFeatures = dataWigs[1]
@@ -112,7 +112,7 @@ class CNVPytorTrack extends TrackBase {
 
                 this.available_callers = ['2D']
             } else {
-                dataWigs = await cnvpytor_obj.read_rd_baf()
+                dataWigs = await this.cnvpytor_obj.read_rd_baf()
                 wigFeatures = dataWigs[0]
                 bafFeatures = dataWigs[1]
                 this.wigFeatures_obj[this.bin_size]['ReadDepth'] = wigFeatures[2]
@@ -120,7 +120,7 @@ class CNVPytorTrack extends TrackBase {
             }
 
             this.wigFeatures_obj[this.bin_size]['RD_Raw'] = wigFeatures[0]
-            this.wigFeatures_obj[this.bin_size]['RD_Raw_gc_coor'] = wigFeatures[1]
+            this.wigFeatures_obj[this.bin_size]['RD_Raw_gc_corrected'] = wigFeatures[1]
             this.wigFeatures_obj[this.bin_size]['BAF1'] = bafFeatures[0]
             this.wigFeatures_obj[this.bin_size]['BAF2'] = bafFeatures[1]
 
@@ -221,7 +221,7 @@ class CNVPytorTrack extends TrackBase {
     
         // Fetch CNV calls
         const cnvCalls = this.cnvpytor_obj.CNVcalls?.[this.bin_size]?.[this.cnv_caller];
-    
+
         if (this.highlightCNV && cnvCalls) {
             const filteredCNV_Calls = this.get_filtered_calls(cnvCalls);
             if (filteredCNV_Calls.length > 0) {
@@ -248,10 +248,10 @@ class CNVPytorTrack extends TrackBase {
             
             // apply the filtering here
             let filteredCNV_Rows = cnv_rows.filter(row => 
-                isInRange(row.p_val, this.filter_criteria.p_range[0], this.filter_criteria.p_range[1]) &&
-                isInRange(row.Q0, this.filter_criteria.q0_range[0], this.filter_criteria.q0_range[1]) &&
+                (row.p_val === undefined || isInRange(row.p_val, this.filter_criteria.p_range[0], this.filter_criteria.p_range[1]) ) &&
+                (row.Q0 === undefined || isInRange(row.Q0, this.filter_criteria.q0_range[0], this.filter_criteria.q0_range[1]) ) &&
         
-                Math.abs(row.cnv - 1) * 2 > this.filter_criteria.cf &&
+                Math.abs(row.cn - 1) * 2 > this.filter_criteria.cf &&
                 (row.baf === undefined || isInRange(row.baf, this.filter_criteria.baf[0], this.filter_criteria.baf[1]) ) &&
                 (row.bins === undefined || row.bins >= this.filter_criteria.bins)
             )

@@ -232,7 +232,7 @@ class baseCNVpytorVCF extends FetchGCInfo {
         
         // Extract all binScore values into a single array
         const binScores = Object.values(this.wigFeatures).reduce(
-            (binResult, bin) => { return binResult.concat(bin.filter(a => a.binScore > 0).map(a => a.binScore)) }, []
+            (AllBins, bin) => { return AllBins.concat(bin.filter(a => a.binScore > 0).map(a => a.binScore)) }, []
         )
 
         let data_fitter = new FitingMethod(binScores)
@@ -242,13 +242,9 @@ class baseCNVpytorVCF extends FetchGCInfo {
         // return { globalMean: model_parameters.parameterValues[1], globalStd: model_parameters.parameterValues[2]}
         this.globalMean = model_parameters.parameterValues[1]
         this.globalStd = model_parameters.parameterValues[2]
-        // console.log("globalmean", this.globalMean)
 
-        
         this.gcData = await this.getBinGC()
-        this.gcFlag =  Object.keys(this.gcData).length > 0 ? true : false; // Flag indicating whether GC data is available
-        this.binScoreField = this.gcFlag ? "gcCorrectedBinScore": "binScore" ;
-
+        
         this.getGcCorrectionSignal(this.globalMean)
         
     }
@@ -260,7 +256,7 @@ class baseCNVpytorVCF extends FetchGCInfo {
     getGcCorrectionSignal(rdGlobalMean){
         let gcRDMean = this.getGcCorrection(rdGlobalMean)
         Object.keys(this.wigFeatures).forEach(chr => {
-            this.wigFeatures[chr].forEach(bin => {
+            this.wigFeatures[chr].forEach((bin) => {
                     if (bin.binScore){
                         bin.gcCorrectedBinScore = Math.round(gcRDMean[bin.gc] * bin.binScore)
                     }else{
@@ -277,7 +273,9 @@ class baseCNVpytorVCF extends FetchGCInfo {
      * @returns {Object} An object containing the GC correction values indexed by GC percentage.
      */
     getGcCorrection(rdGlobalMean){
-        
+        this.gcFlag =  Object.keys(this.gcData).length > 0 ? true : false; // Flag indicating whether GC data is available
+        this.binScoreField = this.gcFlag ? "gcCorrectedBinScore": "binScore" ;
+
         const gcRDMean = {}
         if(this.gcFlag){
             let gcBin = this.getGCbinSize()
@@ -288,17 +286,19 @@ class baseCNVpytorVCF extends FetchGCInfo {
                 for (let k=0; k< this.wigFeatures[chr].length; k++){
                     
                     // collect GC related values  for a bin 
-                    let baseInfo = {'AT': 0, 'GC': 0}
+                    let baseInfo = {'AT': 0, 'GC': 0, 'N': 0}
                     for (let j = k * gcBinFactor; j < k * gcBinFactor + gcBinFactor; j++){
                         if (this.gcData[chr][j]){
                             baseInfo['GC'] += this.gcData[chr][j].gcCount
                             baseInfo['AT'] += this.gcData[chr][j].atCount
+                            baseInfo['N'] += gcBin - (this.gcData[chr][j].atCount + this.gcData[chr][j].gcCount)
                         }
                     }
-
+                    
                     let gcValue = Math.round((baseInfo['GC'] * 100)/(baseInfo['GC'] + baseInfo['AT']))
 
                     this.wigFeatures[chr][k].gc = gcValue
+                    this.wigFeatures[chr][k].Nbase = baseInfo['N']
                     if (!gcRD[gcValue]) {
                         gcRD[gcValue] = [];
                     }

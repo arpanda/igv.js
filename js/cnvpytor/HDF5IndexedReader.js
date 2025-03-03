@@ -298,9 +298,9 @@ class HDF5Reader {
             
             let typeMap = new Map([ [-1, "deletion"], [0, "cnnloh"], [1, "duplication"]]);
             
-            let keys_meanshift = ["start", "end", "size", "cnv", "p_val", "p_val_2", "p_val_3", "p_val_4", "Q0", "pN", "dG"];
+            let keys_meanshift = ["start", "end", "size", "cn", "p_val", "p_val_2", "p_val_3", "p_val_4", "Q0", "pN", "dG"];
     
-            let keys_2d = ["start", "end", "size", "cnv", "p_val", "lh_del", "lh_loh", "lh_dup", "Q0", "bins", "baf", "rd_p_val", "baf_p_val", "segment", "hets", "homs", "pN", "pNS", "pP"]
+            let keys_2d = ["start", "end", "size", "cn", "p_val", "lh_del", "lh_loh", "lh_dup", "Q0", "bins", "baf", "rd_p_val", "baf_p_val", "segment", "hets", "homs", "pN", "pNS", "pP"]
             let keys = caller === '2D'? keys_2d:keys_meanshift
             let calls = {}
             for (let call of chrom_data){

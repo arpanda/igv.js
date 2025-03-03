@@ -1,6 +1,7 @@
 import g_utils from './GeneralUtil.js'
 import combined_caller from './CombinedCaller.js';
-import read_depth_caller from './MeanShiftUtil.js'
+//import read_depth_caller from './MeanShiftUtil.js'
+import read_depth_caller from './MeanShiftCaller.js'
 
 
 function getMean(data) {
@@ -95,6 +96,8 @@ class CNVpytorVCF {
         if(caller == 'ReadDepth'){
             // ------------ new code
             // console.log("setting up meanShift CNV calling")
+            console.log("avgbin", avgbin)
+            
             let callerObj = new read_depth_caller.MeanShiftCaller(avgbin,  this.binSize, this.refGenome)
             
             let processedBins = await callerObj.callMeanshift()
@@ -104,8 +107,9 @@ class CNVpytorVCF {
             // var baf = this.formatDataStructure_BAF(avgbin, 'max_likelihood')
             // var baf = callerObj.format_BAF_likelihood(avgbin)
             var baf = callerObj.formatDataStructure_BAF('max_likelihood', -1)
-
-
+            // setting up the calls for meanshift caller
+            this.CNVcalls = callerObj.CNVcalls
+            
         }else if(caller=='2D'){
             
             let caller_obj = new combined_caller.CombinedCaller(avgbin,  this.binSize, this.refGenome)        
@@ -113,7 +117,8 @@ class CNVpytorVCF {
             
             finalFeatureSet = [processed_bins.binScore, processed_bins.gcCorrectedBinScore, processed_bins.segmentScore]
             var baf = caller_obj.formatDataStructure_BAF('max_likelihood', -1)
-            
+            // setting up the calls for 2d caller
+            this.CNVcalls = caller_obj.CNVcalls
         }
         
         return [finalFeatureSet, baf]
