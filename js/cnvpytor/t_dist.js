@@ -8,14 +8,29 @@
 * @returns {Probability} evaluated CDF
 */
 function TdistributionCDF(t, v){
-    if (isNaN( t ) || isNaN( v ) || v <= 0.0) {
-		return NaN;
-	}
-	if ( t === 0.0 ) {
-		return 0.5;
-	}
-    return 1/2 + (1/2 * (incompbeta(1/2*v, 1/2, 1) - incompbeta(1/2*v, 1/2, v/(v+t*t)))) * Math.sign( t)
+    if (isNaN(t) || isNaN(v) || v <= 0.0) {
+        return NaN;
+    }
+    if (t === 0.0) {
+        return 0.5;
+    }
 
+    // return 0.5 + 0.5 * Math.sign(t) * (1 - incompbeta(0.5*v, 0.5, v/(v+t*t)));
+    let x = v / (v + t * t);
+    
+    // Handle large x cases to prevent NaN
+    if (x < 1e-15) {
+        return 1.0; // Approximate result for very large t-values
+    }
+
+    let beta_val = incompbeta(0.5 * v, 0.5, x);
+
+    if (isNaN(beta_val)) {
+        console.log("Error: incompbeta returned NaN for", x, v);
+        return NaN;
+    }
+
+    return 0.5 + 0.5 * Math.sign(t) * (1 - beta_val);
 }
 
 
@@ -87,6 +102,7 @@ function contfractbeta(a,b,x, ITMAX = 1000){
             return az
         }
     }
+    return az // Return the last computed value if max iterations reached
 }
 
 /**
@@ -104,45 +120,39 @@ function factorial(xf) {
 }
 
 /**
- * Evalues factorial for an integer or fraction using either either factorial or gamma function
- * 
- * @param {Number} a - integar or fraction number
- * @returns value of a gamma function
+ * Computes the natural logarithm of the Gamma function using Lanczos Approximation.
+ * This avoids overflow for large values.
+ *
+ * @param {Number} x - Input value
+ * @returns {Number} - Log Gamma function value
  */
-export function gamma(a){
-    let gamma
+function lgamma(x) {
+    if (x < 0) return NaN; // Gamma is undefined for negative integers
+
+    const g = 7;
+    const coefficients = [
+        0.99999999999980993, 
+        676.5203681218851, 
+        -1259.1392167224028, 
+        771.32342877765313, 
+        -176.61502916214059, 
+        12.507343278686905, 
+        -0.13857109526572012, 
+        9.9843695780195716e-6, 
+        1.5056327351493116e-7
+    ];
+
+    let z = x - 1;
+    let x_sum = coefficients[0];
     
-    var qc = [75122.6331530, 80916.6278952, 36308.2951477, 8687.24529705, 1168.92649479, 83.8676043424, 2.50662827511];
-    
-    var sum1 = 0;
-    var prod1 = 1;
-    if (a == 0) { 
-        gamma = 1e99; 
-    }else {
-        if ((a % 1) == 0) {//if integer
-            gamma = factorial(a - 1);
-        }
-        else { //not integer
-            for (let j = 0; j < qc.length; j++) {
-                sum1 = sum1 + qc[j] * Math.pow(a, j);
-                prod1 = prod1 * (a + j);
-            }
-            gamma = (sum1 * Math.pow((a + 5.5), (a + 0.5))) * Math.exp(-(a + 5.5)) / prod1;
-        }
+    for (let i = 1; i < coefficients.length; i++) {
+        x_sum += coefficients[i] / (z + i);
     }
-    
-    return gamma
+
+    let t = z + g + 0.5;
+    return Math.log(Math.sqrt(2 * Math.PI)) + (z + 0.5) * Math.log(t) - t + Math.log(x_sum);
 }
 
-/**
- * 
- * @param {Number} xg  - integar or fraction number
- * @returns natural log of gamma function
- */
-
-function lgamma(xg){
-    return Math.log(gamma(xg))
-}
 
 function t_test_1_sample(mean, m, s, n) {
     if (s == 0) s = 1;
@@ -163,4 +173,4 @@ function t_test_2_samples(m1, s1, n1, m2, s2, n2) {
     return p
 }
 
-export default {TdistributionCDF, gamma, t_test_1_sample, t_test_2_samples};
+export default {TdistributionCDF, lgamma, t_test_1_sample, t_test_2_samples};
